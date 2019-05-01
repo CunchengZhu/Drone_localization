@@ -7,6 +7,7 @@ volatile int rising_time = 0;
 static int signal_space = 0; //the space between two consecutive signals 
 const int num_sig_cyc = 12; // how many signals in a full cycle = 4 small cycles = 12 signals 
 const int period = 1e6/120; // period = 8333 micoSec
+const int spa_sync = 410; //the space between two sync pause ~ 410 micro secs
  
 int sig_spa_list[num_sig_cyc]={};
 int sig_dur_list[num_sig_cyc]={};
@@ -207,7 +208,8 @@ void loop() {
      //Serial.println(A_hori);
      float angle[4];
      for(i = 0;i < 4;i++){
-      angle[i] = spaceToAngle(spa_list[((A_hori+i)*2)%8]+410); // transform signal space to angle 
+      angle[i] = spaceToAngle(spa_list[((A_hori+i)*2)%8]+spa_sync); // transform signal space to angle
+      // adding spa_sync to include the distance between the spacing between two sync pulse. e.g. A1 B1 SA1 A2 B2 SA2n --> space = (SA1-B1)+(B1-A1)
      }
      //printArray(angle,4);
 

@@ -165,89 +165,111 @@ void setup() {
  
 void loop() {
   if (interruptCounter>0){ 
-     //printArray(sig_spa_list,num_sig_cyc); 
-     //printArray(sig_dur_list,num_sig_cyc);
-     int id_sync = firstIndex(sig_spa_list,num_sig_cyc,400,20); // find out the first sweep signal from the loop 
-     int dur_list[8];int spa_list[8];int i = 0;
-     for(id_sync;id_sync<num_sig_cyc;id_sync=id_sync+3){
-      // since the the duration of sweep signal has no use after we recognize the location of them. 
-      // similarly, the signal space between two sync signal has no use after we figure out where they are
-      // therefore, I create another two lists of duration and space, each having 8 elemnets in the list 
-      dur_list[i] = sig_dur_list[(id_sync+3)%num_sig_cyc];
-      spa_list[i] = sig_spa_list[(id_sync+4)%num_sig_cyc];i++;
-      dur_list[i] = sig_dur_list[(id_sync+4)%num_sig_cyc];
-      spa_list[i] = sig_spa_list[(id_sync+5)%num_sig_cyc];i++;
-     }
-     //printArray(dur_list,8);
-     //printArray(spa_list,8);
-     int dur_diff[4]; i = 0;
-     for (i;i<4;i=i+1){
-      dur_diff[i] = dur_list[2*i]-dur_list[2*i+1]; // calculate duration differece between two sync pulses in each small cycle
-     }
+//    float all_coord[3][2];
 
-     // just discover the use of vector, continue
-     int sorted_dur_diff[4];
-     copy(dur_diff,sorted_dur_diff,4);
-     qsort(sorted_dur_diff, 4, sizeof(sorted_dur_diff[0]), sort_desc); //sort the duration different from high to low 
-     //printArray(dur_diff,4);
-     //printArray(sorted_dur_diff,4);
-     int First = firstIndex(dur_diff, 4,sorted_dur_diff[0],0); //find out the indices of the two larger values 
-     int Second = firstIndex(dur_diff, 4,sorted_dur_diff[1],0);
-     //Serial.println(First);
-     //Serial.println(Second);
-     int A_hori;
-     if (abs(First-Second)==1){ // if they are right beside each other 
-      A_hori = (max(First,Second)+1)%4; // we know that the next index is A base station sweeping horizontally in this cycle, experimentally tested. 
-     }
-     else if(abs(First-Second)==3){ //if they are at both end of the array, we know that the 2nd element is A base station sweeping horizontally
-      A_hori = 1;
-     }
-//     else{
-//      stop();
-//     }
-     //Serial.println(A_hori);
-     float angle[4];
-     for(i = 0;i < 4;i++){
-      angle[i] = spaceToAngle(spa_list[((A_hori+i)*2)%8]+spa_sync); // transform signal space to angle
-      // adding spa_sync to include the distance between the spacing between two sync pulse. e.g. A1 B1 SA1 A2 B2 SA2n --> space = (SA1-B1)+(B1-A1)
-     }
-     //printArray(angle,4);
-
-     // the below block is to find the normal vector of each sweeping surfaces hA: horizontal, A base station, vB: vertical, B base station
-     float hA[3]; float hB[3];float vA[3]; float vB[3];
-     hA[0] = -sin(angle[0]);
-     hA[1] = cos(angle[0]);
-     hA[2] = 0;
-     //printArray(hA,3);
-     vA[0] = 0;
-     vA[1] = -cos(angle[1]);
-     vA[2] = sin(angle[1]);
-     
-     hB[0] = -sin(angle[2]);
-     hB[1] = cos(angle[2]);
-     hB[2] = 0;
-     //printArray(hA,3);
-     vB[0] = 0;
-     vB[1] = -cos(angle[3]);
-     vB[2] = sin(angle[3]);
-
-     float UA[3]; float UB[3];
-     // cross product to find the two lines found by A base station and B base station 
-     Vector_Cross_Product_normalized(UA, hA,vA);
-     Vector_Cross_Product_normalized(UB, hB,vB);
-     //printArray(UA,3);
-     //printArray(UB,3);
-     float UB_trans[3];int x0 = 30;int y0 = 20;
-     // x0 y0 are shown in the handwritten note as well, the distance between two base stations, I will modify it to a varible at the top of the program and add a z as well
-     transformation(UB_trans, UB, x0 ,y0); // make the coordinate transformation for vector of B base station 
-     Normalize(UB_trans); // normalized it 
-     //printArray(UB_trans,3);
-     float w0[3] = {-x0,-y0,0};
-     float coord[3];
-     intersect(coord,UA,UB_trans,w0);  // find location at the line where it is the minimal distance between two lines 
-     printArray(coord,3);
-     //printArray(w0,3);
-     delay(100);
+//    int max_iteration = 8;
+//    for(int iteration = 0;iteration<max_iteration;iteration++){
+       //printArray(sig_spa_list,num_sig_cyc); 
+       //printArray(sig_dur_list,num_sig_cyc);
+       int id_sync = firstIndex(sig_spa_list,num_sig_cyc,400,20); // find out the first sweep signal from the loop 
+       int dur_list[8];int spa_list[8];int i = 0;
+       for(id_sync;id_sync<num_sig_cyc;id_sync=id_sync+3){
+        // since the the duration of sweep signal has no use after we recognize the location of them. 
+        // similarly, the signal space between two sync signal has no use after we figure out where they are
+        // therefore, I create another two lists of duration and space, each having 8 elemnets in the list 
+        dur_list[i] = sig_dur_list[(id_sync+3)%num_sig_cyc];
+        spa_list[i] = sig_spa_list[(id_sync+4)%num_sig_cyc];i++;
+        dur_list[i] = sig_dur_list[(id_sync+4)%num_sig_cyc];
+        spa_list[i] = sig_spa_list[(id_sync+5)%num_sig_cyc];i++;
+       }
+       //printArray(dur_list,8);
+       //printArray(spa_list,8);
+       int dur_diff[4]; i = 0;
+       for (i;i<4;i=i+1){
+        dur_diff[i] = dur_list[2*i]-dur_list[2*i+1]; // calculate duration differece between two sync pulses in each small cycle
+       }
+  
+       // just discover the use of vector, continue
+       int sorted_dur_diff[4];
+       copy(dur_diff,sorted_dur_diff,4);
+       qsort(sorted_dur_diff, 4, sizeof(sorted_dur_diff[0]), sort_desc); //sort the duration different from high to low 
+       //printArray(dur_diff,4);
+       //printArray(sorted_dur_diff,4);
+       int First = firstIndex(dur_diff, 4,sorted_dur_diff[0],0); //find out the indices of the two larger values 
+       int Second = firstIndex(dur_diff, 4,sorted_dur_diff[1],0);
+       //Serial.println(First);
+       //Serial.println(Second);
+       int A_hori;
+       if (abs(First-Second)==1){ // if they are right beside each other 
+        A_hori = (max(First,Second)+1)%4; // we know that the next index is A base station sweeping horizontally in this cycle, experimentally tested. 
+       }
+       else if(abs(First-Second)==3){ //if they are at both end of the array, we know that the 2nd element is A base station sweeping horizontally
+        A_hori = 1;
+       }
+  //     else{
+  //      stop();
+  //     }
+       //Serial.println(A_hori);
+       float angle[4];
+       for(i = 0;i < 4;i++){
+        angle[i] = spaceToAngle(spa_list[((A_hori+i)*2)%8]+spa_sync); // transform signal space to angle
+        // adding spa_sync to include the distance between the spacing between two sync pulse. e.g. A1 B1 SA1 A2 B2 SA2n --> space = (SA1-B1)+(B1-A1)
+       }
+       //printArray(angle,4);
+  
+       // the below block is to find the normal vector of each sweeping surfaces hA: horizontal, A base station, vB: vertical, B base station
+       float hA[3]; float hB[3];float vA[3]; float vB[3];
+       hA[0] = -sin(angle[0]);
+       hA[1] = cos(angle[0]);
+       hA[2] = 0;
+       //printArray(hA,3);
+       vA[0] = 0;
+       vA[1] = cos(angle[1]);
+       vA[2] = sin(angle[1]);
+       
+       hB[0] = -sin(angle[2]);
+       hB[1] = cos(angle[2]);
+       hB[2] = 0;
+       //printArray(hA,3);
+       vB[0] = 0;
+       vB[1] = cos(angle[3]);
+       vB[2] = sin(angle[3]);
+  
+       float UA[3]; float UB[3];
+       // cross product to find the two lines found by A base station and B base station 
+       Vector_Cross_Product_normalized(UA, hA,vA);
+       Vector_Cross_Product_normalized(UB, hB,vB);
+       //printArray(UA,3);
+       //printArray(UB,3);
+       float UB_trans[3];int x0 = 40;int y0 = 80;
+       // x0 y0 are shown in the handwritten note as well, the distance between two base stations, I will modify it to a varible at the top of the program and add a z as well
+       transformation(UB_trans, UB, x0 ,y0); // make the coordinate transformation for vector of B base station 
+       Normalize(UB_trans); // normalized it 
+       //printArray(UB_trans,3);
+       float w0[3] = {-x0,-y0,0};
+       float coord[3];
+       intersect(coord,UA,UB_trans,w0);  // find location at the line where it is the minimal distance between two lines 
+       printArray(coord,3);
+//       if(iteration == 0){
+//         all_coord[0][0] = coord[0]/coord[0];
+//         all_coord[1][0] = coord[1]/coord[1];
+//         all_coord[2][0] = coord[2]/coord[2];
+//         
+//         
+//       }
+//       else if(iteration == max_iteration-1){
+//         all_coord[0][1] = coord[0]/ all_coord[0][0];
+//         all_coord[1][1] = coord[1]/ all_coord[1][0];
+//         all_coord[2][1] = coord[2]/ all_coord[2][0];
+//       }
+       //printArray(w0,3);
+       delay(400);
+//    }
+    //if ((abs(all_coord[0][1]-all_coord[0][0])<0.2) && (abs(all_coord[1][1]-all_coord[1][0])<0.2) && (abs(all_coord[2][1]-all_coord[2][0])<0.2)){
+      //printArray(coord,3);
+      //Serial.print("hello");
+    //}
+    
    }
  
   

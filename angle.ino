@@ -165,10 +165,10 @@ void setup() {
  
 void loop() {
   if (interruptCounter>0){ 
-//    float all_coord[3][2];
-
-//    int max_iteration = 8;
-//    for(int iteration = 0;iteration<max_iteration;iteration++){
+      float all_coord[3][2];
+      float coord[3];
+      int max_iteration = 500;
+    for(int iteration = 0;iteration<max_iteration;iteration++){
        //printArray(sig_spa_list,num_sig_cyc); 
        //printArray(sig_dur_list,num_sig_cyc);
        int id_sync = firstIndex(sig_spa_list,num_sig_cyc,400,20); // find out the first sweep signal from the loop 
@@ -247,28 +247,28 @@ void loop() {
        Normalize(UB_trans); // normalized it 
        //printArray(UB_trans,3);
        float w0[3] = {-x0,-y0,0};
-       float coord[3];
+       
        intersect(coord,UA,UB_trans,w0);  // find location at the line where it is the minimal distance between two lines 
        printArray(coord,3);
-//       if(iteration == 0){
-//         all_coord[0][0] = coord[0]/coord[0];
-//         all_coord[1][0] = coord[1]/coord[1];
-//         all_coord[2][0] = coord[2]/coord[2];
-//         
-//         
-//       }
-//       else if(iteration == max_iteration-1){
-//         all_coord[0][1] = coord[0]/ all_coord[0][0];
-//         all_coord[1][1] = coord[1]/ all_coord[1][0];
-//         all_coord[2][1] = coord[2]/ all_coord[2][0];
-//       }
+       if(iteration == 0){
+         all_coord[0][0] = coord[0]/coord[0];
+         all_coord[1][0] = coord[1]/coord[1];
+         all_coord[2][0] = coord[2]/coord[2];
+         
+         
+       }
+       else if(iteration == max_iteration-1){
+         all_coord[0][1] = coord[0]/ all_coord[0][0];
+         all_coord[1][1] = coord[1]/ all_coord[1][0];
+         all_coord[2][1] = coord[2]/ all_coord[2][0];
+       }
        //printArray(w0,3);
-       delay(400);
-//    }
-    //if ((abs(all_coord[0][1]-all_coord[0][0])<0.2) && (abs(all_coord[1][1]-all_coord[1][0])<0.2) && (abs(all_coord[2][1]-all_coord[2][0])<0.2)){
-      //printArray(coord,3);
-      //Serial.print("hello");
-    //}
+       //delay(50);
+       }
+    if ((abs(all_coord[0][1]-all_coord[0][0])<0.01) && (abs(all_coord[1][1]-all_coord[1][0])<0.01) && (abs(all_coord[2][1]-all_coord[2][0])<0.01)){
+      printArray(coord,3);
+      Serial.print("hello");
+    }
     
    }
  

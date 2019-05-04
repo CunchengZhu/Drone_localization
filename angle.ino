@@ -167,7 +167,7 @@ void loop() {
   if (interruptCounter>0){ 
       float all_coord[3][2];
       float coord[3];
-      int max_iteration = 3;
+      int max_iteration = 100;
     for(int iteration = 0;iteration<max_iteration;iteration++){
        //printArray(sig_spa_list,num_sig_cyc); 
        //printArray(sig_dur_list,num_sig_cyc);
@@ -212,8 +212,13 @@ void loop() {
        //Serial.println(A_hori);
        float angle[4];
        for(i = 0;i < 4;i++){
-        angle[i] = spaceToAngle(spa_list[((A_hori+i)*2)%8]+spa_sync); // transform signal space to angle
-        // adding spa_sync to include the distance between the spacing between two sync pulse. e.g. A1 B1 SA1 A2 B2 SA2n --> space = (SA1-B1)+(B1-A1)
+        if(i < 2){
+          angle[i] = spaceToAngle(spa_list[((A_hori+i)*2)%8]+spa_sync); // transform signal space to angle
+          // adding spa_sync to include the distance between the spacing between two sync pulse. e.g. A1 B1 SA1 A2 B2 SA2n --> space = (SA1-B1)+(B1-A1)
+        }
+        else{
+          angle[i] = spaceToAngle(spa_list[((A_hori+i)*2)%8]); // for the B basestation, don't need to add the spa_sync of 400 micro sec
+        }
        }
        //printArray(angle,4);
   
@@ -280,7 +285,3 @@ void loop() {
  
   
   }
-  
-   
-  
- 

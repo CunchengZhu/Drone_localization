@@ -1,5 +1,5 @@
 #include <math.h>
-const byte interruptPin = 12;
+const byte interruptPin = 25;
 
 volatile int interruptCounter = 0; // counting how many interrupt left unproccessed
 volatile int duration = 0; //duration of the signal
@@ -8,7 +8,10 @@ static int signal_space = 0; //the space between two consecutive signals
 const int num_sig_cyc = 12; // how many signals in a full cycle = 4 small cycles = 12 signals 
 const int period = 1e6/120; // period = 8333 micoSec
 const int spa_sync = 410; //the space between two sync pause ~ 410 micro secs
- 
+
+
+//portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+
 int sig_spa_list[num_sig_cyc]={};
 int sig_dur_list[num_sig_cyc]={};
 
@@ -25,10 +28,14 @@ void stop()
 }
 
 //portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+
+
+// a function used to copy an array to the other array. copy(original,target,length of the arrary)
 void copy(int* src, int* dst, int len) {
-  // a function used to copy an array to the other array. copy(original,target,length of the arrary)
     memcpy(dst, src, sizeof(src[0])*len);
 }
+
+
 
 //transformation, has to do better!
 void transformation(float UB_trans[3], float UB[3],int x0,int y0){
@@ -40,8 +47,10 @@ void transformation(float UB_trans[3], float UB[3],int x0,int y0){
 
 
 
+
+// dot product "dot(u,v,length of the vector) = u*v
+
 float dot(float u1[],float u2[],int Length){
-  // dot product "dot(u,v,length of the vector) = u*v
   float Product = 0;
   for(int i = 0;i<Length;i++){
     Product = Product + u1[i]*u2[i];
@@ -49,9 +58,11 @@ float dot(float u1[],float u2[],int Length){
   return Product;
 }
 
+
+
+// intersect two lines under the same coordinate, essentially finding the minimal distance between two lines. 
+// for detailed information, look at the handwritten derivative posted on slack 
 void intersect(float coord[3],float UA[3],float UB[3],float w0[3]){
-  // intersect two lines under the same coordinate, essentially finding the minimal distance between two lines. 
-  // for detailed information, look at the handwritten derivative posted on slack 
   float a,b,c,d,e,sc;
   a = dot(UA,UA,3);
   b = dot(UA,UB,3);
@@ -67,8 +78,11 @@ void intersect(float coord[3],float UA[3],float UB[3],float w0[3]){
   }
 }
 
+
+
+
+//produces cross product of two 3-dimensional vectors and normalized to an unit vector 
 void Vector_Cross_Product_normalized(float vectorOut[3], float v1[3],float v2[3]){
-  //produces cross product of two 3-dimensional vectors and normalized to an unit vector 
   vectorOut[0]= (v1[1]*v2[2]) - (v1[2]*v2[1]);
   vectorOut[1]= (v1[2]*v2[0]) - (v1[0]*v2[2]);
   vectorOut[2]= (v1[0]*v2[1]) - (v1[1]*v2[0]);
@@ -78,8 +92,11 @@ void Vector_Cross_Product_normalized(float vectorOut[3], float v1[3],float v2[3]
   }
 } 
 
+
+
+
+// normalize a vector to an unit vector 
 void Normalize(float vectorOut[3]){
-  // normalize a vector to an unit vector 
   float mol = sqrt( pow(vectorOut[0],2) + pow(vectorOut[1],2) + pow(vectorOut[2],2));
   for(int i = 0;i<3;i++){
     vectorOut[i]= vectorOut[i]/mol;
@@ -87,18 +104,21 @@ void Normalize(float vectorOut[3]){
 }
 
 
+
+// given the space between two signals in seconds, find the angle of sweep between two signals 
 float spaceToAngle(int space){
-  // given the space between two signals in seconds, find the angle of sweep between two signals 
   float spacehere = (float)space;
   float periodhere = (float)period;
-  float angle = spacehere/periodhere*M_PI;
+  float angle = M_PI - spacehere/periodhere*M_PI;
   return angle;
 }
 
+
+
+// a sort function that sort an arrary from high to low 
+// Need to cast the void * to int *
 int sort_desc(const void *cmp1, const void *cmp2)
 {
-  // a sort function that sort an arrary from high to low 
-  // Need to cast the void * to int *
   int a = *((int *)cmp1);
   int b = *((int *)cmp2);
   // The comparison
@@ -107,8 +127,9 @@ int sort_desc(const void *cmp1, const void *cmp2)
   //return b - a;
 }
 
+
+// a function that iterates through each element of an array and print it out automatically
 void printArray(float theArray[],float Length){
-  // a function that iterates through each element of an array and print it out automatically
    for(int h = 0; h < Length; h++){
          Serial.print(theArray[h]);
          Serial.print(" ");
@@ -116,9 +137,21 @@ void printArray(float theArray[],float Length){
    Serial.print("\n");
 }
 
-int firstIndex(int theArrary[], int Length,int target,int tolerance){
-  // find the index of the first element in an array that matches the target value under some tolerance, 
+
+// a function that iterates through each element of an array and print it out automatically
+void printArrayInt(int theArray[],int Length){
+   for(int h = 0; h < Length; h++){
+         Serial.print(theArray[h]);
+         Serial.print(" ");
+   }
+   Serial.print("\n");
+}
+
+
+
+// find the index of the first element in an array that matches the target value under some tolerance, 
   // for example u = (2,4.2,4.1), then "firstIndex(u,3,4,0.1) = 3"
+int firstIndex(int theArrary[], int Length,int target,int tolerance){
   int h;
   for(h = 0; h < Length; h++){
     if (abs(theArrary[h]-target)<=tolerance){
@@ -128,33 +161,43 @@ int firstIndex(int theArrary[], int Length,int target,int tolerance){
   return h;
 }
 
+
+
 // these two blocks dynamically switch the interrupt command between both rising and falling to catch both rising signal and falling signal
 // thus calculate the duration and the signal space, and assign them to the array that we store consistently throughtout the program
-
 void handleInterrupt() {
   static int pre_rising_time = 0;
   attachInterrupt(digitalPinToInterrupt(interruptPin), falling, FALLING);
   rising_time = micros();
   signal_space = rising_time-pre_rising_time;
+//  if(signal_space<350){
+//    num_inter--;
+//  }
   sig_spa_list[num_inter] = signal_space;
   //Serial.println(signal_space);
   pre_rising_time = micros();
 }
-
-
 void falling() {
   num_inter=(num_inter+1)%num_sig_cyc; //{0123...11} // very important, num_inter will only between 0 to 11.
+  //portENTER_CRITICAL_ISR(&mux);
   interruptCounter++;
+  //portENTER_CRITICAL_ISR(&mux);
   attachInterrupt(digitalPinToInterrupt(interruptPin), handleInterrupt, RISING); 
   duration = micros()-rising_time;
   sig_dur_list[num_inter] = duration; //assign the current calculated duration to the array, and consistently store these 12 values in the array 
-//  Serial.print(duration);
+ // Serial.print(duration);
 //  Serial.print(";");
 //  Serial.print(num_inter);
 //  Serial.print(";");
   
 }
- 
+
+
+
+
+
+
+
 void setup() {
  
   Serial.begin(115200);
@@ -162,14 +205,17 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(interruptPin), handleInterrupt, RISING);
  
 }
+
+
+
  
 void loop() {
   if (interruptCounter>0){ 
       float all_coord[3][2];
       float coord[3];
-      int max_iteration = 100;
+      int max_iteration = 8;
     for(int iteration = 0;iteration<max_iteration;iteration++){
-       //printArray(sig_spa_list,num_sig_cyc); 
+       printArrayInt(sig_spa_list,num_sig_cyc); 
        //printArray(sig_dur_list,num_sig_cyc);
        int id_sync = firstIndex(sig_spa_list,num_sig_cyc,400,20); // find out the first sweep signal from the loop 
        int dur_list[8];int spa_list[8];int i = 0;
@@ -220,7 +266,7 @@ void loop() {
           angle[i] = spaceToAngle(spa_list[((A_hori+i)*2)%8]); // for the B basestation, don't need to add the spa_sync of 400 micro sec
         }
        }
-       //printArray(angle,4);
+       printArray(angle,4);
   
        // the below block is to find the normal vector of each sweeping surfaces hA: horizontal, A base station, vB: vertical, B base station
        float hA[3]; float hB[3];float vA[3]; float vB[3];
@@ -270,7 +316,7 @@ void loop() {
        //printArray(w0,3);
        //delay(50);
        }
-    if ((abs(all_coord[0][1]-1)<0.01) && (abs(all_coord[1][1]-1)<0.01) && (abs(all_coord[2][1]-1)<0.01)){
+    if ((abs(all_coord[0][1]-1)<0.08) && (abs(all_coord[1][1]-1)<0.08) && (abs(all_coord[2][1]-1)<0.08)){
       printArray(coord,3);
       //Serial.println("hello");
       

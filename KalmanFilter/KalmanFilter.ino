@@ -149,9 +149,19 @@ int num_inter = 0; // number of interrupts, very important idea, it will only be
 float dyaw = 0;
 float dt = 0;
 
+mtx_type MEA[6][1];
 mtx_type IMU_data[5];
 mtx_type F[6][6];
 mtx_type globG[6][3];
+mtx_type K_Gain[6][6];
+mtx_type state[6][1]={
+        {0},
+        {0},
+        {0},
+        {1},
+        {1},
+        {1}    
+      };
 mtx_type STATE_VAR[6][6] = {
   {1,  0,  0, 0, 0, 0 },
       
@@ -168,19 +178,48 @@ mtx_type STATE_VAR[6][6] = {
 
 //************* Kalman filter parameters
 mtx_type PRO_VAR[6][6] = {
-  {0,  0,  0, 0, 0, 0 },
+   {10,  0,  0, 0, 0, 0 },
       
-  {0,  0,  0, 0, 0, 0 },
+  {0,  10,  0, 0, 0, 0 },
   
-  {0,  0,  0, 0, 0, 0 },
+  {0,  0,  10, 0, 0, 0},
   
-  {0,  0,  0, 0, 0, 0 },
+  {0,  0,  0, 10, 0, 0 },
 
-  {0,  0,  0, 0 , 0, 0 },
+  {0,  0,  0, 0 , 10, 0 },
   
-  {0,  0,  0, 0 , 0, 0 },
+  {0,  0,  0, 0 , 0, 10},
 };
 
+mtx_type MEA_VAR[6][6] = {
+  {1,  0,  0, 1, 0, 0 },
+      
+  {0,  1,  0, 0, 1, 0 },
+  
+  {0,  0,  1, 0, 0, 1 },
+  
+  {1,  0,  0, 1, 0, 0 },
+
+  {0,  1,  0, 0 , 1, 0 },
+  
+  {0,  0,  1, 0 , 0, 1},
+};
+
+
+mtx_type OBSER[6][6] = {
+  {1,  0,  0, 0, 0, 0 },
+      
+  {0,  1,  0, 0, 0, 0 },
+  
+  {0,  0,  1, 0, 0, 0 },
+  
+  {0,  0,  0, 1, 0, 0 },
+      
+  {0,  0,  0, 0, 1, 0 },
+  
+  {0,  0,  0, 0, 0, 1 }
+  
+};
 
 //mtx_type state[6][1] ={
 //    {0},
@@ -272,56 +311,24 @@ void loop() //Main Loop
       Read_Compass();    // Read I2C magnetometer
       Compass_Heading(); // Calculate magnetic heading
     }
-
-    // Calculations...
-    Matrix_update();
-    Normalize();
-    Drift_correction();
-    Euler_angles();
-    // ***
-    //printdata();
-    
-    if (countIMU > 50)
-        {
-          countIMU = 0;
-          static float yaw_pre = 0;
-          static float t_pre = 0;
-          dyaw = yaw - yaw_pre; 
-          yaw_pre = yaw; 
-          dt = float(millis() - t_pre)/1000;
-          t_pre = millis();
-          GETIMU(AN,dyaw,dt,IMU_data);
-          mtx_type state[6][1]={
-            {0},
-            {0},
-            {0},
-            {1},
-            {1},
-            {1}    
-          };
-          UPDATE(IMU_data, state,F,globG);
-          Matrix.Print((mtx_type*)state, 6, 1, "state");
-          GET_STATE_VAR(F,PRO_VAR,STATE_VAR);
-        }
     
     //************************base station 
 
     
   if (interruptCounter>0){ 
-    
-     //printArray(coord,3);
-     //Serial.print("yaw");
-     //Serial.println(yaw);
-     //Serial.println(AN[3]);
-     countBase++;
-     if( countBase > 48){
+    //printArray(coord,3);
+    //Serial.print("yaw");
+    //Serial.println(yaw);
+    //Serial.println(AN[3]);
+    countBase++;
+    if( countBase > 48){
       countBase = 0;
       float coord[3];
-     //printArray(sig_spa_list,num_sig_cyc); 
-     //printArray(sig_dur_list,num_sig_cyc);
-     int id_sync = firstIndex(sig_spa_list,num_sig_cyc,400,20); // find out the first sweep signal from the loop 
-     int dur_list[8];int spa_list[8];int i = 0;
-     for(id_sync;id_sync<num_sig_cyc;id_sync=id_sync+3){
+      //printArray(sig_spa_list,num_sig_cyc); 
+      //printArray(sig_dur_list,num_sig_cyc);
+      int id_sync = firstIndex(sig_spa_list,num_sig_cyc,400,20); // find out the first sweep signal from the loop 
+      int dur_list[8];int spa_list[8];int i = 0;
+      for(id_sync;id_sync<num_sig_cyc;id_sync=id_sync+3){
       // since the the duration of sweep signal has no use after we recognize the location of them. 
       // similarly, the signal space between two sync signal has no use after we figure out where they are
       // therefore, I create another two lists of duration and space, each having 8 elemnets in the list 
@@ -329,67 +336,99 @@ void loop() //Main Loop
       spa_list[i] = sig_spa_list[(id_sync+4)%num_sig_cyc];i++;
       dur_list[i] = sig_dur_list[(id_sync+4)%num_sig_cyc];
       spa_list[i] = sig_spa_list[(id_sync+5)%num_sig_cyc];i++;
-     }
-     //printArray(dur_list,8);
-     //printArray(spa_list,8);
-     int dur_diff[4]; i = 0;
-     for (i;i<4;i=i+1){
-      dur_diff[i] = dur_list[2*i]-dur_list[2*i+1]; // calculate duration differece between two sync pulses in each small cycle
-     }
-
-     int sorted_dur_diff[4];
-     copy(dur_diff,sorted_dur_diff,4);
-     qsort(sorted_dur_diff, 4, sizeof(sorted_dur_diff[0]), sort_desc); //sort the duration different from high to low 
-     //printArray(dur_diff,4);
-     //printArray(sorted_dur_diff,4);
-     int First = firstIndex(dur_diff, 4,sorted_dur_diff[0],0); //find out the indices of the two larger values 
-     int Second = firstIndex(dur_diff, 4,sorted_dur_diff[1],0);
-     //Serial.println(First);
-     //Serial.println(Second);
-     int A_hori;
-     if (abs(First-Second)==1){ // if they are right beside each other 
-      A_hori = (max(First,Second)+1)%4; // we know that the next index is A base station sweeping horizontally in this cycle, experimentally tested. 
-     }
-     else if(abs(First-Second)==3){ //if they are at both end of the array, we know that the 2nd element is A base station sweeping horizontally
-      A_hori = 1;
-     }
-//     else{
-//      stop();
-//     }
-     //Serial.println(A_hori);
-     float angle[4];
-     for(i = 0;i < 4;i++){
-      if(i < 2){
-        angle[i] = spaceToAngle(spa_list[((A_hori+i)*2)%8]+spa_sync); // transform signal space to angle
-        // adding spa_sync to include the distance between the spacing between two sync pulse. e.g. A1 B1 SA1 A2 B2 SA2n --> space = (SA1-B1)+(B1-A1)
       }
-      else{
-        angle[i] = spaceToAngle(spa_list[((A_hori+i)*2)%8]); // for the B basestation, don't need to add the spa_sync of 400 micro sec
-      }
-     }
-     //printArray(angle,4);
-     float hA[3]; float hB[3]; float vA[3]; float vB[3];
-     FindNormal(hA, hB, vA, vB, angle);
-
-     float UA[3]; float UB[3];
-     // cross product to find the two lines found by A base station and B base station 
-     Vector_Cross_Product_normalized(UA, hA,vA);
-     Vector_Cross_Product_normalized(UB, hB,vB);
-     //printArray(UA,3);
-     //printArray(UB,3);
-     float UA_trans[3]; float UB_trans[3];int x0 = 0.4;int y0 = 0.8;
-     // x0 y0 are shown in the handwritten note as well, the distance between two base stations, I will modify it to a varible at the top of the program and add a z as well
-     transformationA(UA_trans, UA, x0 ,y0);
-     transformationB(UB_trans, UB, x0 ,y0);// make the coordinate transformation for vector of B base station 
-     Normalize(UA_trans);
-     Normalize(UB_trans); // normalized it
-     //printArray(UB_trans,3);
-     float w0[3] = {-x0,-y0,0};
-     
-     intersect(coord,UA_trans,UB_trans,w0);  // find location at the line where it is the minimal distance between two lines 
-     
+      //printArray(dur_list,8);
+      //printArray(spa_list,8);
+      int dur_diff[4]; i = 0;
+      for (i;i<4;i=i+1){
+        dur_diff[i] = dur_list[2*i]-dur_list[2*i+1]; // calculate duration differece between two sync pulses in each small cycle
+        }
       
-     }
+      int sorted_dur_diff[4];
+      copy(dur_diff,sorted_dur_diff,4);
+      qsort(sorted_dur_diff, 4, sizeof(sorted_dur_diff[0]), sort_desc); //sort the duration different from high to low 
+      //printArray(dur_diff,4);
+      //printArray(sorted_dur_diff,4);
+      int First = firstIndex(dur_diff, 4,sorted_dur_diff[0],0); //find out the indices of the two larger values 
+      int Second = firstIndex(dur_diff, 4,sorted_dur_diff[1],0);
+      //Serial.println(First);
+      //Serial.println(Second);
+      int A_hori;
+      if (abs(First-Second)==1){ // if they are right beside each other 
+        A_hori = (max(First,Second)+1)%4; // we know that the next index is A base station sweeping horizontally in this cycle, experimentally tested. 
+        }
+      else if(abs(First-Second)==3){ //if they are at both end of the array, we know that the 2nd element is A base station sweeping horizontally
+        A_hori = 1;
+        }
+      //     else{
+      //      stop();
+      //     }
+      //Serial.println(A_hori);
+      float angle[4];
+      for(i = 0;i < 4;i++){
+        if(i < 2){
+          angle[i] = spaceToAngle(spa_list[((A_hori+i)*2)%8]+spa_sync); // transform signal space to angle
+          // adding spa_sync to include the distance between the spacing between two sync pulse. e.g. A1 B1 SA1 A2 B2 SA2n --> space = (SA1-B1)+(B1-A1)
+          }
+        else{
+          angle[i] = spaceToAngle(spa_list[((A_hori+i)*2)%8]); // for the B basestation, don't need to add the spa_sync of 400 micro sec
+          }
+      }
+      //printArray(angle,4);
+      float hA[3]; float hB[3]; float vA[3]; float vB[3];
+      FindNormal(hA, hB, vA, vB, angle);
+      
+      float UA[3]; float UB[3];
+      // cross product to find the two lines found by A base station and B base station 
+      Vector_Cross_Product_normalized(UA, hA,vA);
+      Vector_Cross_Product_normalized(UB, hB,vB);
+      //printArray(UA,3);
+      //printArray(UB,3);
+      float UA_trans[3]; float UB_trans[3];int x0 = 40;int y0 = 80;//cm
+      // x0 y0 are shown in the handwritten note as well, the distance between two base stations, I will modify it to a varible at the top of the program and add a z as well
+      transformationA(UA_trans, UA, x0 ,y0);
+      transformationB(UB_trans, UB, x0 ,y0);// make the coordinate transformation for vector of B base station 
+      Normalize(UA_trans);
+      Normalize(UB_trans); // normalized it
+      //printArray(UB_trans,3);
+      float w0[3] = {-x0,-y0,0};
+      
+      intersect(coord,UA_trans,UB_trans,w0);  // find location at the line where it is the minimal distance between two lines 
+      //printArray(coord,3);
+
+      //************* IMU 
+
+      // Calculations...
+      Matrix_update();
+      Normalize();
+      Drift_correction();
+      Euler_angles();
+      //printdata();
+
+      
+      // **********  compare previous 
+      
+      static float yaw_pre = 0;
+      static float coord_pre[3] = {0,0,0};
+      static float t_pre = 0;
+      dyaw = yaw - yaw_pre; 
+      yaw_pre = yaw; 
+      dt = float(millis() - t_pre)/1000;
+      t_pre = millis();
+      GetStateMesure(coord, coord_pre, dt, MEA);
+      //Matrix.Print((mtx_type*)MEA, 6, 1, "MEA");
+      copyfloat(coord, coord_pre, 3);
+      GETIMU(AN,dyaw,dt,IMU_data);
+      //Matrix.Print((mtx_type*)IMU_data, 6, 1, "IMU");
+      UPDATE(IMU_data, state,F,globG);
+      //Matrix.Print((mtx_type*)state, 6, 1, "state");
+      //Matrix.Print((mtx_type*)state, 6, 1, "state");
+      GET_STATE_VAR(F,PRO_VAR,STATE_VAR);
+      GET_K_Gain(STATE_VAR,OBSER, MEA_VAR,K_Gain);
+      FUSE(state,MEA,OBSER,K_Gain);
+      Matrix.Print((mtx_type*)state, 6, 1, "state");
+      UPDATE_STATE_VAR(K_Gain,OBSER,STATE_VAR);
+   }
      
   }
 }

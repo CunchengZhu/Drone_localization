@@ -26,7 +26,12 @@ float dot(float u1[],float u2[],int Length){
   return Product;
 }
 
-
+void GetStateMesure(float coord[3], float coord_pre[3], float dt, mtx_type MEA[6][1]){
+  for(int i = 0; i<3;i++){
+    MEA[i][0] = coord[i];
+    MEA[i+3][0] = (coord[i] - coord_pre[i])/dt;
+  }
+}
 
 // intersect two lines under the same coordinate, essentially finding the minimal distance between two lines. 
 // for detailed information, look at the handwritten derivative posted on slack 

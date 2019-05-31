@@ -99,8 +99,9 @@ float yaw;
 float errorRollPitch[3]= {0,0,0};
 float errorYaw[3]= {0,0,0};
 
-unsigned int counter=0;
-unsigned int countPts = 0;
+unsigned int countCompass=0;
+unsigned int countIMU = 0;
+unsigned int countBase = 0;
 byte gyro_sat=0;
 
 float DCM_Matrix[3][3]= {
@@ -123,8 +124,7 @@ float Temporary_Matrix[3][3]={
     0,0,0  }
 };
 
-float dyaw = 0;
-float dt = 0;
+
 
 
 //******** parameter basestation 
@@ -145,10 +145,43 @@ int sig_dur_list[num_sig_cyc]={};
 int num_inter = 0; // number of interrupts, very important idea, it will only be number between 0 to 11, 
 
 
-//************ Kalman filter parameter
+//************ Kalman filter variable 
+float dyaw = 0;
+float dt = 0;
+
 mtx_type IMU_data[5];
 mtx_type F[6][6];
 mtx_type globG[6][3];
+mtx_type STATE_VAR[6][6] = {
+  {1,  0,  0, 0, 0, 0 },
+      
+  {0,  1,  0, 0, 0, 0 },
+  
+  {0,  0,  1, 0, 0, 0 },
+  
+  {0,  0,  0, 1 , 0, 0 },
+
+  {0,  0,  0, 0 , 1, 0 },
+  
+  {0,  0,  0, 0 , 0, 1 },
+};
+
+//************* Kalman filter parameters
+mtx_type PRO_VAR[6][6] = {
+  {0,  0,  0, 0, 0, 0 },
+      
+  {0,  0,  0, 0, 0, 0 },
+  
+  {0,  0,  0, 0, 0, 0 },
+  
+  {0,  0,  0, 0, 0, 0 },
+
+  {0,  0,  0, 0 , 0, 0 },
+  
+  {0,  0,  0, 0 , 0, 0 },
+};
+
+
 //mtx_type state[6][1] ={
 //    {0},
 //    {0},
@@ -201,7 +234,7 @@ void setup()
 
   timer=millis();
   delay(20);
-  counter=0;
+  countCompass=0;
 
 
  //********* basestation setup 
@@ -212,10 +245,9 @@ void setup()
 }
 
 void loop() //Main Loop
-{
-  if (1/*interruptCounter>0*/){   
-    counter++;
-    countPts++;
+{  
+    countCompass++;
+    countIMU++;
     timer_old = timer;
     timer=millis();
     if (timer>timer_old)
@@ -234,9 +266,9 @@ void loop() //Main Loop
     Read_Gyro();   // This read gyro data
     Read_Accel();     // Read I2C accelerometer
 
-    if (counter > 5)  // Read compass data at 10Hz... (5 loop runs)
+    if (countCompass > 5)  // Read compass data at 10Hz... (5 loop runs)
     {
-      counter=0;
+      countCompass=0;
       Read_Compass();    // Read I2C magnetometer
       Compass_Heading(); // Calculate magnetic heading
     }
@@ -249,11 +281,42 @@ void loop() //Main Loop
     // ***
     //printdata();
     
-
+    if (countIMU > 50)
+        {
+          countIMU = 0;
+          static float yaw_pre = 0;
+          static float t_pre = 0;
+          dyaw = yaw - yaw_pre; 
+          yaw_pre = yaw; 
+          dt = float(millis() - t_pre)/1000;
+          t_pre = millis();
+          GETIMU(AN,dyaw,dt,IMU_data);
+          mtx_type state[6][1]={
+            {0},
+            {0},
+            {0},
+            {1},
+            {1},
+            {1}    
+          };
+          UPDATE(IMU_data, state,F,globG);
+          Matrix.Print((mtx_type*)state, 6, 1, "state");
+          GET_STATE_VAR(F,PRO_VAR,STATE_VAR);
+        }
     
     //************************base station 
 
-    float coord[3];
+    
+  if (interruptCounter>0){ 
+    
+     //printArray(coord,3);
+     //Serial.print("yaw");
+     //Serial.println(yaw);
+     //Serial.println(AN[3]);
+     countBase++;
+     if( countBase > 48){
+      countBase = 0;
+      float coord[3];
      //printArray(sig_spa_list,num_sig_cyc); 
      //printArray(sig_dur_list,num_sig_cyc);
      int id_sync = firstIndex(sig_spa_list,num_sig_cyc,400,20); // find out the first sweep signal from the loop 
@@ -274,7 +337,6 @@ void loop() //Main Loop
       dur_diff[i] = dur_list[2*i]-dur_list[2*i+1]; // calculate duration differece between two sync pulses in each small cycle
      }
 
-     // just discover the use of vector, continue
      int sorted_dur_diff[4];
      copy(dur_diff,sorted_dur_diff,4);
      qsort(sorted_dur_diff, 4, sizeof(sorted_dur_diff[0]), sort_desc); //sort the duration different from high to low 
@@ -315,7 +377,7 @@ void loop() //Main Loop
      Vector_Cross_Product_normalized(UB, hB,vB);
      //printArray(UA,3);
      //printArray(UB,3);
-     float UA_trans[3]; float UB_trans[3];int x0 = 40;int y0 = 80;
+     float UA_trans[3]; float UB_trans[3];int x0 = 0.4;int y0 = 0.8;
      // x0 y0 are shown in the handwritten note as well, the distance between two base stations, I will modify it to a varible at the top of the program and add a z as well
      transformationA(UA_trans, UA, x0 ,y0);
      transformationB(UB_trans, UB, x0 ,y0);// make the coordinate transformation for vector of B base station 
@@ -325,31 +387,9 @@ void loop() //Main Loop
      float w0[3] = {-x0,-y0,0};
      
      intersect(coord,UA_trans,UB_trans,w0);  // find location at the line where it is the minimal distance between two lines 
-     //printArray(coord,3);
-     //Serial.print("yaw");
-     //Serial.println(yaw);
-     //Serial.println(AN[3]);
-     if (countPts > 50)  // Read compass data at 10Hz... (5 loop runs)
-    {
-      countPts = 0;
-      static float yaw_pre = 0;
-      static float t_pre = 0;
-      dyaw = yaw - yaw_pre; 
-      yaw_pre = yaw; 
-      dt = float(millis() - t_pre)/1000;
-      t_pre = millis();
-      GETIMU(AN,dyaw,dt,IMU_data);
-      mtx_type state[6][1]={
-        {0},
-        {0},
-        {0},
-        {1},
-        {1},
-        {1}    
-      };
-      UPDATE(IMU_data, state,F,globG);
-      Matrix.Print((mtx_type*)state, 6, 1, "state");
+     
       
-    }
+     }
+     
   }
 }

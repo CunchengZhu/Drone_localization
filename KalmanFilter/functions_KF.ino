@@ -110,5 +110,13 @@ void GETIMU(int AN[6],float dyaw,float dt,mtx_type IMU_data[5]){
 }
 
 void GET_STATE_VAR(mtx_type F[6][6],mtx_type PRO_VAR[6][6],mtx_type STATE_VAR[6][6]){
-  
+  mtx_type TRAN_F[6][6];
+  mtx_type PFT[6][6];
+  mtx_type FPFT[6][6];
+  mtx_type NewSTATE_VAR[6][6];
+  Matrix.Transpose((mtx_type*)F, 6, 6, (mtx_type*)TRAN_F);
+  Matrix.Multiply((mtx_type*)STATE_VAR, (mtx_type*)TRAN_F, 6, 6, 6, (mtx_type*)PFT);
+  Matrix.Multiply((mtx_type*)F, (mtx_type*)PFT, 6, 6, 6, (mtx_type*)FPFT);
+  Matrix.Add((mtx_type*)FPFT, (mtx_type*)PRO_VAR, 6, 6, (mtx_type*)NewSTATE_VAR);
+  Matrix.Copy((mtx_type*)NewSTATE_VAR, 6, 6, (mtx_type*)STATE_VAR);
 }
